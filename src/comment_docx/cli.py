@@ -34,8 +34,7 @@ def cli() -> None:
     default=None,
     help="Path for the commented DOCX.",
 )
-@click.option("--author", default="LLM Agent", show_default=True, help="DOCX comment author.")
-@click.option("--initials", default="AI", show_default=True, help="DOCX comment author initials.")
+@click.option("--author", default="AI Commenter", show_default=True, help="DOCX comment author.")
 @click.option("--provider-base-url", default=None, help="OpenAI-compatible provider base URL.")
 @click.option("--api-key", default=None, help="OpenAI-compatible provider API key.")
 @click.option("--model", default=None, help="OpenAI-compatible model name.")
@@ -52,7 +51,6 @@ def add(
     query: str,
     output_path: Path | None,
     author: str,
-    initials: str,
     provider_base_url: str | None,
     api_key: str | None,
     model: str | None,
@@ -83,7 +81,6 @@ def add(
             query=query,
             provider=provider,
             author=author,
-            initials=initials,
         )
     except CommentDocxError as error:
         click.echo(f"Error: {error}", err=True)
