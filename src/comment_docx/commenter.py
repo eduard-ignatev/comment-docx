@@ -106,7 +106,8 @@ class CommentResult:
 class ModelMatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    run_ids: list[str] = Field(min_length=1)
+    start_run_id: str = Field(min_length=1)
+    end_run_id: str = Field(min_length=1)
     comment: str = Field(min_length=1)
 
 
@@ -148,8 +149,7 @@ def add_comments_to_docx(
     output_path: Path,
     query: str,
     provider: ProviderConfig,
-    author: str = "LLM Agent",
-    initials: str | None = "AI",
+    author: str = "AI Commenter",
     matcher: Matcher | None = None,
 ) -> CommentResult:
     document = Document(input_path)
@@ -161,7 +161,7 @@ def add_comments_to_docx(
     selected_matches = validate_matches(match_response, context)
 
     for selected_runs, comment in selected_matches:
-        document.add_comment(runs=selected_runs, text=comment, author=author, initials=initials)
+        document.add_comment(runs=selected_runs, text=comment, author=author)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     document.save(output_path)
@@ -217,27 +217,25 @@ def validate_matches(response: ModelResponse, context: RunContext) -> list[tuple
     ordered_spans = list(context.spans)
     selected: list[tuple[list[Run], str]] = []
 
-    # AICODE-NOTE: This validation is the safety boundary; never trust the LLM to imply ranges.
+    # AICODE-NOTE: This validation is the safety boundary; the LLM chooses endpoints, code expands ranges.
     for match_index, match in enumerate(response.matches, start=1):
         comment = match.comment.strip()
         if not comment:
             raise CommentDocxError(f"Match {match_index} has an empty comment.")
 
-        unknown_ids = [run_id for run_id in match.run_ids if run_id not in spans_by_id]
+        endpoint_ids = [match.start_run_id, match.end_run_id]
+        unknown_ids = [run_id for run_id in endpoint_ids if run_id not in spans_by_id]
         if unknown_ids:
             raise CommentDocxError(f"Match {match_index} references unknown run ids: {', '.join(unknown_ids)}")
 
-        if len(set(match.run_ids)) != len(match.run_ids):
-            raise CommentDocxError(f"Match {match_index} contains duplicate run ids.")
-
-        orders = sorted(spans_by_id[run_id].order for run_id in match.run_ids)
-        expected_ids = [span.id for span in ordered_spans[orders[0] : orders[-1] + 1]]
-        if expected_ids != sorted(match.run_ids, key=lambda run_id: spans_by_id[run_id].order):
+        start_order = spans_by_id[match.start_run_id].order
+        end_order = spans_by_id[match.end_run_id].order
+        if start_order > end_order:
             raise CommentDocxError(
-                f"Match {match_index} must include a contiguous run-id range in document order."
+                f"Match {match_index} start_run_id must be before or equal to end_run_id in document order."
             )
 
-        selected_spans = ordered_spans[orders[0] : orders[-1] + 1]
+        selected_spans = ordered_spans[start_order : end_order + 1]
         selected.append(([span.run for span in selected_spans], comment))
 
     return selected
@@ -271,9 +269,14 @@ def _build_messages(*, context: RunContext, query: str) -> list[dict[str, str]]:
         {
             "role": "system",
             "content": (
-                "You select exact DOCX run ids that should receive comments. "
-                "Return only JSON with shape {\"matches\":[{\"run_ids\":[\"r000001\"],\"comment\":\"...\"}]}. "
-                "Each match must use one or more contiguous run ids in document order. "
+                "You are a helpful assistant that adds comments on DOCX documents. "
+                "The task is to select run id ranges and provide comment texts based on user query. "
+                "If the query states that something is missing in the document, "
+                "select the appropriate header or paragraph where it supposed to be. "
+                "Return only JSON with shape "
+                "{\"matches\":[{\"start_run_id\":\"r000001\",\"end_run_id\":\"r000003\",\"comment\":\"...\"}]}. "
+                "Use the same id for start_run_id and end_run_id when commenting a single run. "
+                "The start_run_id must be before or equal to end_run_id in document order. "
                 "If no comment is appropriate, return {\"matches\":[]}."
             ),
         },

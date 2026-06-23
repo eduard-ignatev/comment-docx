@@ -10,8 +10,8 @@ Use this skill when there is a need to add comments, review notes, or targeted
 feedback into a local DOCX file.
 
 The tool builds a run-id map from body paragraphs and tables, asks an
-OpenAI-compatible LLM to select contiguous run ids and comment text, validates
-the response, and writes a new DOCX with comments.
+OpenAI-compatible LLM to select start/end run ids and comment text, validates the
+response, and writes a new DOCX with comments.
 
 ## Inputs
 

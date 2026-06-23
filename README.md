@@ -3,8 +3,8 @@
 Agent-friendly DOCX commenting using LLM-selected run ranges.
 
 The tool reads a `.docx`, builds a structured list of text runs with stable ids,
-asks an OpenAI-compatible LLM which runs should receive comments for a query,
-validates the response, and writes a new `.docx` with comments.
+asks an OpenAI-compatible LLM which run ranges should receive comments for a
+query, validates the response, and writes a new `.docx` with comments.
 
 ## Configuration
 

@@ -32,20 +32,50 @@ def test_build_run_context_includes_body_and_table_runs_in_order(tmp_path: Path)
     ]
 
 
-def test_validate_matches_accepts_contiguous_run_ids(tmp_path: Path) -> None:
+def test_validate_matches_accepts_start_end_range() -> None:
     document = Document()
     paragraph = document.add_paragraph()
     paragraph.add_run("First")
     paragraph.add_run("Second")
+    paragraph.add_run("Third")
     context = build_run_context(document)
 
     selected = validate_matches(
-        ModelResponse(matches=[ModelMatch(run_ids=["r000001", "r000002"], comment="Explain this.")]),
+        ModelResponse(
+            matches=[
+                ModelMatch(
+                    start_run_id="r000001",
+                    end_run_id="r000003",
+                    comment="Explain this.",
+                )
+            ]
+        ),
         context,
     )
 
-    assert [run.text for run in selected[0][0]] == ["First", "Second"]
+    assert [run.text for run in selected[0][0]] == ["First", "Second", "Third"]
     assert selected[0][1] == "Explain this."
+
+
+def test_validate_matches_accepts_single_run_range() -> None:
+    document = Document()
+    document.add_paragraph("Only")
+    context = build_run_context(document)
+
+    selected = validate_matches(
+        ModelResponse(
+            matches=[
+                ModelMatch(
+                    start_run_id="r000001",
+                    end_run_id="r000001",
+                    comment="Explain this.",
+                )
+            ]
+        ),
+        context,
+    )
+
+    assert [run.text for run in selected[0][0]] == ["Only"]
 
 
 def test_validate_matches_rejects_unknown_run_id() -> None:
@@ -55,12 +85,20 @@ def test_validate_matches_rejects_unknown_run_id() -> None:
 
     with pytest.raises(CommentDocxError, match="unknown run ids"):
         validate_matches(
-            ModelResponse(matches=[ModelMatch(run_ids=["r999999"], comment="Explain this.")]),
+            ModelResponse(
+                matches=[
+                    ModelMatch(
+                        start_run_id="r000001",
+                        end_run_id="r999999",
+                        comment="Explain this.",
+                    )
+                ]
+            ),
             context,
         )
 
 
-def test_validate_matches_rejects_non_contiguous_run_ids() -> None:
+def test_validate_matches_rejects_reversed_range() -> None:
     document = Document()
     paragraph = document.add_paragraph()
     paragraph.add_run("First")
@@ -68,9 +106,17 @@ def test_validate_matches_rejects_non_contiguous_run_ids() -> None:
     paragraph.add_run("Third")
     context = build_run_context(document)
 
-    with pytest.raises(CommentDocxError, match="contiguous"):
+    with pytest.raises(CommentDocxError, match="before or equal"):
         validate_matches(
-            ModelResponse(matches=[ModelMatch(run_ids=["r000001", "r000003"], comment="Explain this.")]),
+            ModelResponse(
+                matches=[
+                    ModelMatch(
+                        start_run_id="r000003",
+                        end_run_id="r000001",
+                        comment="Explain this.",
+                    )
+                ]
+            ),
             context,
         )
 
@@ -82,7 +128,15 @@ def test_validate_matches_rejects_blank_comment() -> None:
 
     with pytest.raises(CommentDocxError, match="empty comment"):
         validate_matches(
-            ModelResponse(matches=[ModelMatch(run_ids=["r000001"], comment=" ")]),
+            ModelResponse(
+                matches=[
+                    ModelMatch(
+                        start_run_id="r000001",
+                        end_run_id="r000001",
+                        comment=" ",
+                    )
+                ]
+            ),
             context,
         )
 
@@ -103,7 +157,15 @@ def test_add_comments_to_docx_writes_commented_output(tmp_path: Path) -> None:
         assert query == "Find unclear text"
         assert provider.model == "test-model"
         assert [span.id for span in context.spans] == ["r000001"]
-        return ModelResponse(matches=[ModelMatch(run_ids=["r000001"], comment="Clarify this claim.")])
+        return ModelResponse(
+            matches=[
+                ModelMatch(
+                    start_run_id="r000001",
+                    end_run_id="r000001",
+                    comment="Clarify this claim.",
+                )
+            ]
+        )
 
     result = add_comments_to_docx(
         input_path=input_path,
