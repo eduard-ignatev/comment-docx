@@ -41,8 +41,7 @@ comment-docx add file.docx "Comment claims that need source citations"
 ## Options
 
 - `--output`: Output DOCX path.
-- `--author`: DOCX comment author. Default: `LLM Agent`.
-- `--initials`: DOCX comment initials. Default: `AI`.
+- `--author`: DOCX comment author. Default: `AI Commenter`.
 - `--timeout`: LLM request timeout in seconds. Default: `120`.
 - `--max-tokens`: Maximum LLM response tokens. Default: `2048`.
 - `--dump-context`: Write the run-id context JSON for inspection.
